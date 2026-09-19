@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Real-time Messaging Demo</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 500px; margin: 40px auto; padding: 0 15px; }
+  input, button { padding: 8px; margin: 4px 0; width: 100%; box-sizing: border-box; }
+  button { cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 4px; }
+  #chatBox { border: 1px solid #ccc; height: 250px; overflow-y: auto; padding: 10px; margin: 10px 0; border-radius: 4px; }
+  .msg { margin: 4px 0; padding: 6px; border-radius: 4px; background: #f1f5f9; }
+  .me { background: #dbeafe; text-align: right; }
+</style>
+</head>
+<body>
+  <h2>🔌 Real-time Messaging Test</h2>
+
+  <label>আপনার username:</label>
+  <input id="myUsername" placeholder="যেমন: karim" />
+  <button onclick="joinChat()">Join</button>
+
+  <hr>
+
+  <label>কাকে পাঠাবেন (receiver username):</label>
+  <input id="receiver" placeholder="যেমন: rahim" />
+
+  <div id="chatBox"></div>
+
+  <input id="msgText" placeholder="মেসেজ লিখুন..." />
+  <button onclick="sendMessage()">Send</button>
+
+<script>
+  const socket = io('http://localhost:3000'); // socket.io server এর সাথে connect করলাম
+  let myUsername = '';
+
+  socket.on('connect', () => console.log('✅ Socket connected:', socket.id));
+
+  function joinChat() {
+    myUsername = document.getElementById('myUsername').value.trim();
+    if (!myUsername) return alert('username দিন');
+    socket.emit('join', myUsername); // নিজের নাম দিয়ে room এ join করলাম
+    alert(`${myUsername} হিসেবে join করলেন। এখন মেসেজ পাঠাতে/পেতে পারবেন।`);
+  }
+
+  async function sendMessage() {
+    const receiver = document.getElementById('receiver').value.trim();
+    const text = document.getElementById('msgText').value.trim();
+    if (!myUsername) return alert('আগে Join করুন');
+    if (!receiver || !text) return alert('receiver ও message লিখুন');
+
+    // REST API কল করে মেসেজ সেভ করলাম (এটাই server এ গিয়ে socket দিয়ে receiver কে পাঠাবে)
+    const res = await fetch('http://localhost:3000/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender: myUsername, receiver, text }),
+    });
+    const newMsg = await res.json();
+
+    addMessageToBox(newMsg, true); // নিজের পাঠানো মেসেজ নিজের বক্সেও দেখালাম
+    document.getElementById('msgText').value = '';
+  }
+
+  // অন্য কেউ মেসেজ পাঠালে তা সাথে সাথে (real-time) দেখাবে
+  socket.on('receiveMessage', (msg) => {
+    addMessageToBox(msg, false);
+  });
+
+  function addMessageToBox(msg, isMine) {
+    const box = document.getElementById('chatBox');
+    const div = document.createElement('div');
+    div.className = 'msg' + (isMine ? ' me' : '');
+    div.textContent = `${msg.sender}: ${msg.text}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+</script>
+</body>
+</html>
